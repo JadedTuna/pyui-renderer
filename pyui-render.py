@@ -8,6 +8,10 @@ except ImportError:
 
 template = """
 <style>
+html {
+    background-color: #F7F7F7;
+}
+
 div.View {
     position: fixed;
     border-radius: 10px;
@@ -32,6 +36,27 @@ span.Label {
 div.TextField {
     position: fixed;
 }
+
+div.Button {
+    position: fixed;
+    text-align: center; /* Safari support */
+}
+
+div.Switch {
+    position: fixed;
+}
+
+div.SwitchInner {
+    position: fixed;
+    border-radius: 40px;
+}
+
+div.SwitchOuter {
+    position: fixed;
+    border-radius: 40px;
+    background-color: white;
+}
+
 </style>
 <html>
 <head></head>
@@ -91,15 +116,64 @@ padding: 0 5px 0 5px;
 " placeholder="{placeholder}" value="{text}"></div>
 """
 
+template_Button = """
+<div class="Button" style="
+top: {y}px;
+left: {x}px;
+width: {w}px;
+height: {h}px;
+line-height: {h}px;
+border: {border_width}px solid {border_color};
+border-radius: {corner_radius}px;
+">
+<a href="#" style="
+text-decoration: none;
+font-size: {font_size}px;
+font-family: {font_name};
+color: {tint_color};
+display: flex;
+justify-content: center;
+align-items: center;
+">{title}</a></div>
+"""
+
+template_Switch = """
+<div class="Switch" style="
+top: {y}px;
+left: {x}px;
+width: {w}px;
+height: {h}px;
+">
+    <div class="SwitchInner" align="right" style="
+    background-color: {tint_color};
+    width: inherit;
+    height: inherit;
+    box-shadow: 0 0 1px black;
+    text-align: center;
+    ">
+        <div class="SwitchOuter" style="
+        top: {oy}px;
+        left: {ox}px;
+        width: {ow}px;
+        height: {oh}px;
+        box-shadow: 0 0 1px black;
+        "></div>
+    </div>
+</div>
+"""
+
+
 pattern = "RGBA\(([\d.]+),([\d.]+),([\d.]+),([\d.]+)\)"
 document = StringIO()
 
-pad_top = 30
+pad_top = 8
 defaults = {
-    "font_name":   "Helvetica",
-    "font_size":   17,
-    "text":        "",
-    "placeholder": ""
+    "font_name":        "Helvetica",
+    "font_size":        17,
+    "text":             "",
+    "placeholder":      "",
+    "tint_color":       None,
+    "background_color": None,
 }
 
 def convert(attrs, *labels):
@@ -113,7 +187,7 @@ def convert(attrs, *labels):
         attrs[label] = "rgba(%d, %d, %d, %f)" % (r, g, b, a)
 
 def parse_frame(strframe):
-    data = json.loads(strframe.replace("{", "[").replace("}", "]"))
+    data = json.loads(strframe.replace('{', '[').replace('}', ']'))
 
     frame = {
         'x': data[0][0],
@@ -127,31 +201,60 @@ def parse_frame(strframe):
 # Rendering functions
 
 def render_View(**attrs):
-    convert(attrs, 'background_color', 'border_color', 'tint_color')
+    convert(attrs, "background_color", "border_color", "tint_color")
 
     document.write(template_View.format(**attrs))
 
 def render_Label(**attrs):
-    convert(attrs, 'text_color', 'border_color')
+    convert(attrs, "text_color", "border_color")
     attrs['y'] += pad_top
+    attrs['y'] += attrs['h'] - attrs['h'] / 1.3
+    attrs['h'] /= 1.3
 
     document.write(template_Label.format(**attrs))
 
 def render_TextField(**attrs):
-    convert(attrs, 'border_color', 'text_color')
+    convert(attrs, "border_color", "text_color")
     attrs['y'] += pad_top
+    attrs['y'] += attrs['h'] - attrs['h'] / 1.3
+    attrs['h'] /= 1.3
 
     document.write(template_TextField.format(**attrs))
 
+def render_Button(**attrs):
+    convert(attrs, "border_color", "tint_color")
+    attrs['y'] += attrs['h'] - attrs['h'] / 1.3
+    attrs['h'] /= 1.3
+
+    document.write(template_Button.format(**attrs))
+
+def render_Switch(**attrs):
+    convert(attrs, "border_color", "tint_color", "background_color")
+    attrs['y'] += pad_top
+    attrs['y'] += attrs['h'] - attrs['h'] / 1.3
+    attrs['h'] /= 1.3
+
+    attrs["oh"] = attrs['h'] / 1.07
+
+    attrs["ow"] = attrs["oh"]
+    attrs["oy"] = (attrs['y'] + attrs['h'] / 2) - attrs['oh']/2
+
+    if attrs["value"]:
+        attrs["ox"] = (attrs['x'] + attrs['w']) - attrs["ow"] - 2
+    else:
+        attrs["ox"] = attrs['x'] + 2
+        attrs["tint_color"] = "white"
+
+    document.write(template_Switch.format(**attrs))
 
 def render(json):
     view = json[0] # This renderer supports just one view for now
-    attrs = view["attributes"]
+    view_attrs = view["attributes"]
     frame = parse_frame(view["frame"])
     for (key, value) in frame.items():
-        attrs[key] = value
+        view_attrs[key] = value
 
-    render_View(**attrs)
+    render_View(**view_attrs)
 
     for element in view["nodes"]:
         attrs = element["attributes"]
@@ -161,13 +264,22 @@ def render(json):
 
         for (key, value) in defaults.items():
             if not key in attrs.keys():
-                attrs[key] = value
+                if value is not None:
+                    attrs[key] = value
+                else:
+                    attrs[key] = view_attrs[key]
 
         if element["class"] == "Label":
             render_Label(**attrs)
 
         elif element["class"] == "TextField":
             render_TextField(**attrs)
+
+        elif element["class"] == "Button":
+            render_Button(**attrs)
+
+        elif element["class"] == "Switch":
+            render_Switch(**attrs)
 
         else:
             print("Unknown (unsupported?) element: `%s'" % element["class"])
