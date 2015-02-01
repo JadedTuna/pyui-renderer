@@ -251,23 +251,20 @@ def render(json):
     view = json[0] # This renderer supports just one view for now
     view_attrs = view["attributes"]
     frame = parse_frame(view["frame"])
-    for (key, value) in frame.items():
-        view_attrs[key] = value
+    for key in frame:
+        view_attrs[key] = frame[key]
 
     render_View(**view_attrs)
 
     for element in view["nodes"]:
         attrs = element["attributes"]
         frame = parse_frame(element["frame"])
-        for (key, value) in frame.items():
-            attrs[key] = value
+        for key in frame:
+            attrs[key] = frame[key]
 
         for (key, value) in defaults.items():
-            if not key in attrs.keys():
-                if value is not None:
-                    attrs[key] = value
-                else:
-                    attrs[key] = view_attrs[key]
+            if not key in attrs:
+                attrs[key] = value or view_attrs[key]
 
         if element["class"] == "Label":
             render_Label(**attrs)
@@ -285,7 +282,6 @@ def render(json):
             print("Unknown (unsupported?) element: `%s'" % element["class"])
 
     write_html("index.html")
-
 
 def write_html(filename):
     with open(filename, "wb") as fp:
